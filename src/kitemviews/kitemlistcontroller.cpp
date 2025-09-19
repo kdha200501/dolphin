@@ -240,6 +240,8 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
     int index = m_selectionManager->currentItem();
     int key = event->key();
     const bool shiftPressed = event->modifiers() & Qt::ShiftModifier;
+    const bool controlPressed = event->modifiers() & Qt::ControlModifier;
+    const bool optionPressed = event->modifiers() & Qt::AltModifier;
 
     const bool horizontalScrolling = m_view->scrollOrientation() == Qt::Horizontal;
 
@@ -259,7 +261,7 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
 
     // Handle the expanding/collapsing of items
     // expand / collapse all selected directories
-    if (m_view->supportsItemExpanding() && m_model->isExpandable(index) && (key == Qt::Key_Right || key == Qt::Key_Left)) {
+    if (m_view->supportsItemExpanding() && m_model->isExpandable(index) && (key == Qt::Key_Right || key == Qt::Key_Left) && !optionPressed) {
         const bool expandOrCollapse = key == Qt::Key_Right ? true : false;
         bool shouldReturn = m_model->setExpanded(index, expandOrCollapse);
 
@@ -283,7 +285,6 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         }
     }
 
-    const bool controlPressed = event->modifiers() & Qt::ControlModifier;
     if (m_selectionMode && !controlPressed && !shiftPressed && (key == Qt::Key_Enter || key == Qt::Key_Return)) {
         key = Qt::Key_Space; // In selection mode one moves around with arrow keys and toggles selection with Enter.
     }
@@ -322,19 +323,11 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
     }
 
     switch (key) {
-    case Qt::Key_Home:
-        index = 0;
-        m_keyboardAnchorIndex = index;
-        m_keyboardAnchorPos = keyboardAnchorPos(index);
-        break;
-
-    case Qt::Key_End:
-        index = itemCount - 1;
-        m_keyboardAnchorIndex = index;
-        m_keyboardAnchorPos = keyboardAnchorPos(index);
-        break;
-
     case Qt::Key_Left:
+        if (optionPressed) {
+            event->ignore();
+            return false;
+        }
         if (index > 0) {
             const int expandedParentsCount = m_model->expandedParentsCount(index);
             if (expandedParentsCount == 0) {
@@ -351,6 +344,10 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         break;
 
     case Qt::Key_Right:
+        if (optionPressed) {
+            event->ignore();
+            return false;
+        }
         if (index < itemCount - 1) {
             ++index;
             m_keyboardAnchorIndex = index;
@@ -359,6 +356,13 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         break;
 
     case Qt::Key_Up:
+        if (optionPressed) {
+            index = 0;
+            m_keyboardAnchorIndex = index;
+            m_keyboardAnchorPos = keyboardAnchorPos(index);
+            break;
+        }
+
         updateKeyboardAnchor();
         if (shiftPressed && !m_selectionManager->isAnchoredSelectionActive() && m_selectionManager->isSelected(index)) {
             m_selectionManager->beginAnchoredSelection(index);
@@ -367,6 +371,27 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         break;
 
     case Qt::Key_Down:
+        if(controlPressed) {
+            const KItemSet selectedItems = m_selectionManager->selectedItems();
+            if (selectedItems.count() >= 2) {
+              Q_EMIT itemsActivated(selectedItems);
+            } else if (selectedItems.count() == 1) {
+              Q_EMIT itemActivated(selectedItems.first());
+            } else {
+              Q_EMIT itemActivated(index);
+            }
+
+            event->ignore();
+            return true;
+        }
+
+        if(optionPressed) {
+            index = itemCount - 1;
+            m_keyboardAnchorIndex = index;
+            m_keyboardAnchorPos = keyboardAnchorPos(index);
+            break;
+        }
+
         updateKeyboardAnchor();
         if (shiftPressed && !m_selectionManager->isAnchoredSelectionActive() && m_selectionManager->isSelected(index)) {
             m_selectionManager->beginAnchoredSelection(index);
