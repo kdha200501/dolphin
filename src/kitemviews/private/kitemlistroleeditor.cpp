@@ -41,7 +41,7 @@ QByteArray KItemListRoleEditor::role() const
 
 void KItemListRoleEditor::setAllowUpDownKeyChainEdit(bool allowChainEdit)
 {
-    m_allowUpDownKeyChainEdit = allowChainEdit;
+    m_allowUpDownKeyChainEdit = false;
 }
 
 bool KItemListRoleEditor::eventFilter(QObject *watched, QEvent *event)
