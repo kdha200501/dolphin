@@ -34,6 +34,7 @@ KItemListWidget::KItemListWidget(KItemListWidgetInformant *informant, QGraphicsI
     , m_selected(false)
     , m_current(false)
     , m_hovered(false)
+    , m_highlighted(false)
     , m_expansionAreaHovered(false)
     , m_alternateBackground(false)
     , m_enabledSelectionToggle(false)
@@ -145,7 +146,11 @@ void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
 
             QPainter pixmapPainter(m_hoverCache);
             const QStyle::State activeState(isActiveWindow() && widget->hasFocus() ? QStyle::State_Active | QStyle::State_Enabled : 0);
-            drawItemStyleOption(&pixmapPainter, widget, activeState | QStyle::State_MouseOver | QStyle::State_Item);
+            if(m_highlighted) {
+                drawItemStyleOption(&pixmapPainter, widget, activeState | QStyle::State_Item | QStyle::State_MouseOver);
+            } else {
+                drawItemStyleOption(&pixmapPainter, widget, activeState | QStyle::State_Item);
+            }
         }
 
         const qreal opacity = painter->opacity();
@@ -266,6 +271,10 @@ bool KItemListWidget::isCurrent() const
 
 void KItemListWidget::setHovered(bool hovered)
 {
+    if(!hovered) {
+        m_highlighted = false;
+    }
+
     if (hovered == m_hovered) {
         return;
     }
@@ -306,6 +315,16 @@ void KItemListWidget::setHovered(bool hovered)
 bool KItemListWidget::isHovered() const
 {
     return m_hovered;
+}
+
+void KItemListWidget::setHighlighted(bool highlighted)
+{
+    m_highlighted = highlighted;
+}
+
+bool KItemListWidget::isHighlighted() const
+{
+    return m_highlighted;
 }
 
 void KItemListWidget::setExpansionAreaHovered(bool hovered)
@@ -561,7 +580,7 @@ void KItemListWidget::hoverSequenceEnded()
 
 qreal KItemListWidget::hoverOpacity() const
 {
-    return m_hoverOpacity;
+    return 0;
 }
 
 int KItemListWidget::hoverSequenceIndex() const

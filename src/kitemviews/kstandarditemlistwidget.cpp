@@ -345,7 +345,7 @@ void KStandardItemListWidget::paint(QPainter *painter, const QStyleOptionGraphic
         drawSiblingsInformation(painter);
     }
 
-    auto pixmap = isHovered() ? m_hoverPixmap : m_pixmap;
+    auto pixmap = m_pixmap;
     if (!m_overlays.isEmpty()) {
         const qreal dpr = KItemViewsUtils::devicePixelRatio(this);
 
