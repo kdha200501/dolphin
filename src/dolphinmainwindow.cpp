@@ -1882,7 +1882,7 @@ void DolphinMainWindow::setupActions()
                                        "There you can enter text to filter the files and folders currently displayed. "
                                        "Only those that contain the text in their name will be kept in view."));
     showFilterBar->setIcon(QIcon::fromTheme(QStringLiteral("view-filter")));
-    actionCollection()->setDefaultShortcuts(showFilterBar, {Qt::CTRL | Qt::Key_I, Qt::Key_Slash});
+    actionCollection()->setDefaultShortcuts(showFilterBar, {Qt::Key_Slash});
     connect(showFilterBar, &QAction::triggered, this, &DolphinMainWindow::showFilterBar);
 
     // toggle_filter acts as a copy of the main showFilterBar to be used mainly
