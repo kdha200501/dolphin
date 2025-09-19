@@ -5,6 +5,7 @@
     SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 */
 
+#include "dolphinmainwindow.h"
 #include "dolphinnavigatorswidgetaction.h"
 
 #include "trash/dolphintrash.h"
@@ -25,6 +26,7 @@
 
 DolphinNavigatorsWidgetAction::DolphinNavigatorsWidgetAction(QWidget *parent)
     : QWidgetAction{parent}
+    , m_parent(parent)
     , m_splitter{new QSplitter(Qt::Horizontal)}
     , m_adjustSpacingTimer{new QTimer(this)}
     , m_viewGeometriesHelper{m_splitter.get(), this}
@@ -214,6 +216,11 @@ QWidget *DolphinNavigatorsWidgetAction::createNavigatorWidget(Side side) const
             this->m_adjustSpacingTimer->start();
         },
         Qt::QueuedConnection);
+
+    connect(urlNavigator, &KUrlNavigator::returnPressed, this, [urlNavigator, this]() {
+      DolphinMainWindow *dolphinMainWindow = qobject_cast<DolphinMainWindow *>(m_parent);
+      dolphinMainWindow->focusOnDolphinView();
+    });
 
     auto trailingSpacing = new QWidget{navigatorWidget};
     layout->addWidget(trailingSpacing);

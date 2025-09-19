@@ -100,6 +100,8 @@ protected:
     void deleteWidget(QWidget *widget) override;
 
 private:
+  QObject *m_parent;
+  
     /**
      * In Left-to-right languages the Primary side will be the left one.
      */

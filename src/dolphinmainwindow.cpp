@@ -893,7 +893,10 @@ void DolphinMainWindow::paste()
 
 void DolphinMainWindow::find()
 {
+    KUrlNavigator *navigator = m_activeViewContainer->urlNavigator();
+    navigator->setUrlEditable(false);
     m_activeViewContainer->setSearchModeEnabled(true);
+    m_activeViewContainer->view()->clearSelection();
 }
 
 void DolphinMainWindow::updateSearchAction()
@@ -1162,6 +1165,8 @@ void DolphinMainWindow::replaceLocation()
         navigator->setUrlEditable(true);
         navigator->setFocus();
         lineEdit->selectAll();
+        m_activeViewContainer->setSearchModeEnabled(false);
+        m_activeViewContainer->view()->clearSelection();
     }
 }
 
@@ -3040,6 +3045,11 @@ void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)
         }
         action->trigger();
     }
+}
+
+void DolphinMainWindow::focusOnDolphinView()
+{
+    m_activeViewContainer->view()->setFocus();
 }
 
 #include "moc_dolphinmainwindow.cpp"
