@@ -342,6 +342,7 @@ private:
     void startRubberBand();
 
 private:
+    QObject *m_parent;
     bool m_singleClickActivationEnforced;
     bool m_selectionMode;
     bool m_selectionTogglePressed;
