@@ -861,6 +861,8 @@ bool KItemListController::dragMoveEvent(QGraphicsSceneDragDropEvent *event, cons
                 Q_EMIT itemHovered(index);
             }
 
+            newHoveredWidget->setHighlighted(m_model->canEnterOnHover(index));
+
             if (m_autoActivationEnabled && !m_autoActivationTimer->isActive() && m_model->canEnterOnHover(index)) {
                 m_autoActivationTimer->setProperty("index", index);
                 m_autoActivationTimer->start();
