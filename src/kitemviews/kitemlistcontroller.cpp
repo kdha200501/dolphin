@@ -284,6 +284,7 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
     }
 
     const bool controlPressed = event->modifiers() & Qt::ControlModifier;
+    const bool optionPressed = event->modifiers() & Qt::AltModifier;
     if (m_selectionMode && !controlPressed && !shiftPressed && (key == Qt::Key_Enter || key == Qt::Key_Return)) {
         key = Qt::Key_Space; // In selection mode one moves around with arrow keys and toggles selection with Enter.
     }
@@ -322,18 +323,6 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
     }
 
     switch (key) {
-    case Qt::Key_Home:
-        index = 0;
-        m_keyboardAnchorIndex = index;
-        m_keyboardAnchorPos = keyboardAnchorPos(index);
-        break;
-
-    case Qt::Key_End:
-        index = itemCount - 1;
-        m_keyboardAnchorIndex = index;
-        m_keyboardAnchorPos = keyboardAnchorPos(index);
-        break;
-
     case Qt::Key_Left:
         if (index > 0) {
             const int expandedParentsCount = m_model->expandedParentsCount(index);
@@ -359,6 +348,13 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         break;
 
     case Qt::Key_Up:
+        if (optionPressed) {
+            index = 0;
+            m_keyboardAnchorIndex = index;
+            m_keyboardAnchorPos = keyboardAnchorPos(index);
+            break;
+        }
+
         updateKeyboardAnchor();
         if (shiftPressed && !m_selectionManager->isAnchoredSelectionActive() && m_selectionManager->isSelected(index)) {
             m_selectionManager->beginAnchoredSelection(index);
@@ -367,6 +363,27 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         break;
 
     case Qt::Key_Down:
+        if(controlPressed) {
+            const KItemSet selectedItems = m_selectionManager->selectedItems();
+            if (selectedItems.count() >= 2) {
+              Q_EMIT itemsActivated(selectedItems);
+            } else if (selectedItems.count() == 1) {
+              Q_EMIT itemActivated(selectedItems.first());
+            } else {
+              Q_EMIT itemActivated(index);
+            }
+
+            event->ignore();
+            return true;
+        }
+
+        if(optionPressed) {
+            index = itemCount - 1;
+            m_keyboardAnchorIndex = index;
+            m_keyboardAnchorPos = keyboardAnchorPos(index);
+            break;
+        }
+
         updateKeyboardAnchor();
         if (shiftPressed && !m_selectionManager->isAnchoredSelectionActive() && m_selectionManager->isSelected(index)) {
             m_selectionManager->beginAnchoredSelection(index);

@@ -151,7 +151,7 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
                                           "You can configure advanced options there like managing "
                                           "read- and write-permissions."));
     propertiesAction->setIcon(QIcon::fromTheme(QStringLiteral("document-properties")));
-    m_actionCollection->setDefaultShortcuts(propertiesAction, {Qt::ALT | Qt::Key_Return, Qt::ALT | Qt::Key_Enter});
+    m_actionCollection->setDefaultShortcuts(propertiesAction, {Qt::CTRL | Qt::Key_I});
     connect(propertiesAction, &QAction::triggered, this, &DolphinViewActionHandler::slotProperties);
 
     QAction *copyPathAction = m_actionCollection->addAction(QStringLiteral("copy_location"));
