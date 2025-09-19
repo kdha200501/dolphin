@@ -8,6 +8,7 @@
  */
 
 #include "kitemlistcontroller.h"
+#include "views/dolphinview.h"
 
 #include "kitemlistselectionmanager.h"
 #include "kitemlistview.h"
@@ -32,6 +33,7 @@
 
 KItemListController::KItemListController(KItemModelBase *model, KItemListView *view, QObject *parent)
     : QObject(parent)
+    , m_parent(parent)
     , m_singleClickActivationEnforced(false)
     , m_selectionMode(false)
     , m_selectionTogglePressed(false)
@@ -449,14 +451,18 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
 
     case Qt::Key_Enter:
     case Qt::Key_Return: {
-        const KItemSet selectedItems = m_selectionManager->selectedItems();
-        if (selectedItems.count() >= 2) {
-            Q_EMIT itemsActivated(selectedItems);
-        } else if (selectedItems.count() == 1) {
-            Q_EMIT itemActivated(selectedItems.first());
-        } else {
-            Q_EMIT itemActivated(index);
-        }
+        // const KItemSet selectedItems = m_selectionManager->selectedItems();
+        // if (selectedItems.count() >= 2) {
+        //     Q_EMIT itemsActivated(selectedItems);
+        // } else if (selectedItems.count() == 1) {
+        //     Q_EMIT itemActivated(selectedItems.first());
+        // } else {
+        //     Q_EMIT itemActivated(index);
+        // }
+
+        // When the KStandardItemListWidget is in edit mode, subsequent Enter/Return QKeyEvent are not captured here
+        DolphinView *dolphinView = qobject_cast<DolphinView *>(m_parent);
+        dolphinView->renameSelectedItems();
         break;
     }
 
