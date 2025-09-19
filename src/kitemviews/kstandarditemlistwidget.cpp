@@ -1641,41 +1641,6 @@ void KStandardItemListWidget::drawPixmap(QPainter *painter, const QPixmap &pixma
     }
 }
 
-void KStandardItemListWidget::drawSiblingsInformation(QPainter *painter)
-{
-    const int siblingSize = size().height();
-    const int x = (m_expansionArea.left() + m_expansionArea.right() - siblingSize) / 2;
-    QRect siblingRect(x, 0, siblingSize, siblingSize);
-
-    bool isItemSibling = true;
-
-    const QBitArray siblings = siblingsInformation();
-    QStyleOption option;
-    const auto normalColor = option.palette.color(normalTextColorRole());
-    const auto highlightColor = option.palette.color(expansionAreaHovered() ? QPalette::Highlight : normalTextColorRole());
-    for (int i = siblings.count() - 1; i >= 0; --i) {
-        option.rect = siblingRect;
-        option.state = siblings.at(i) ? QStyle::State_Sibling : QStyle::State_None;
-        if (isItemSibling) {
-            option.state |= QStyle::State_Item;
-            if (m_isExpandable) {
-                option.state |= QStyle::State_Children;
-            }
-            if (data().value("isExpanded").toBool()) {
-                option.state |= QStyle::State_Open;
-            }
-            option.palette.setColor(QPalette::Text, highlightColor);
-            isItemSibling = false;
-        } else {
-            option.palette.setColor(QPalette::Text, normalColor);
-        }
-
-        style()->drawPrimitive(QStyle::PE_IndicatorBranch, &option, painter);
-
-        siblingRect.translate(layoutDirection() == Qt::LeftToRight ? -siblingRect.width() : siblingRect.width(), 0);
-    }
-}
-
 QRectF KStandardItemListWidget::roleEditingRect(const QByteArray &role) const
 {
     const TextInfo *textInfo = m_textInfo.value(role);
@@ -1689,6 +1654,33 @@ QRectF KStandardItemListWidget::roleEditingRect(const QByteArray &role) const
     }
 
     return rect;
+}
+
+void KStandardItemListWidget::drawSiblingsInformation(QPainter *painter)
+{
+    if (!m_isExpandable) {
+        return;
+    }
+
+    QPolygon rightAngledTriangle;
+    const int x = (m_expansionArea.left() + m_expansionArea.right()) / 2;
+    const double y = size().height() / 2;
+    const double halfHeight = 3;
+    const double halfWidth = halfHeight * sqrt(2);
+    if (data().value("isExpanded").toBool()) {
+        rightAngledTriangle << QPoint(x - halfWidth, y - halfHeight) // Top-left vertex
+                            << QPoint(x + halfWidth, y - halfHeight) // Top-right vertex
+                            << QPoint(x, y + halfHeight); // Bottom vertex
+    } else {
+        rightAngledTriangle << QPoint(x - halfHeight, y - halfWidth) // Bottom vertex
+                            << QPoint(x - halfHeight, y + halfWidth) // Top vertex
+                            << QPoint(x + halfHeight, y); // Right vertex
+    }
+
+    QColor color("#6666cc");
+    QBrush brush(color);
+    painter->setBrush(brush);
+    painter->drawPolygon(rightAngledTriangle);
 }
 
 void KStandardItemListWidget::closeRoleEditor()
