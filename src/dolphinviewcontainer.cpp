@@ -756,7 +756,13 @@ void DolphinViewContainer::slotItemActivated(const KFileItem &item)
         if (modifiers & Qt::ControlModifier && modifiers & Qt::ShiftModifier) {
             Q_EMIT activeTabRequested(url);
         } else if (modifiers & Qt::ControlModifier) {
-            Q_EMIT tabRequested(url);
+            const auto mouseButtons = QGuiApplication::mouseButtons();
+
+            if (mouseButtons & Qt::LeftButton) {
+                Q_EMIT tabRequested(url);
+            } else {
+                setUrl(url);
+            }
         } else if (modifiers & Qt::ShiftModifier) {
             Dolphin::openNewWindow({KFilePlacesModel::convertedUrl(url)}, this);
         } else {
