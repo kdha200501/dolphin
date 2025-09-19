@@ -192,7 +192,7 @@ void KItemListContainer::wheelEvent(QWheelEvent *event)
 #else
     const QPoint scrollDelta = event->angleDelta();
 #endif
-    const bool scrollHorizontally = (qAbs(scrollDelta.y()) < qAbs(scrollDelta.x())) || (!verticalScrollBar()->isVisible());
+    const bool scrollHorizontally = (qAbs(scrollDelta.y()) < qAbs(scrollDelta.x()));
     KItemListSmoothScroller *smoothScroller = scrollHorizontally ? m_horizontalSmoothScroller : m_verticalSmoothScroller;
 
     smoothScroller->handleWheelEvent(event);
