@@ -7,6 +7,7 @@
  */
 
 #include "dolphinmainwindow.h"
+#include "trash/dolphintrash.h"
 
 #include "admin/workerintegration.h"
 #include "dolphin_generalsettings.h"
@@ -1938,7 +1939,7 @@ void DolphinMainWindow::setupActions()
                                        "There you can enter text to filter the files and folders currently displayed. "
                                        "Only those that contain the text in their name will be kept in view."));
     showFilterBar->setIcon(QIcon::fromTheme(QStringLiteral("view-filter")));
-    actionCollection()->setDefaultShortcuts(showFilterBar, {Qt::CTRL | Qt::Key_I, Qt::Key_Slash});
+    actionCollection()->setDefaultShortcuts(showFilterBar, {Qt::Key_Slash});
     connect(showFilterBar, &QAction::triggered, this, &DolphinMainWindow::showFilterBar);
 
     // toggle_filter acts as a copy of the main showFilterBar to be used mainly
@@ -2343,6 +2344,15 @@ void DolphinMainWindow::setupActions()
     actionCollection()->addAction(QStringLiteral("window_color_sheme"), windowColorSchemeMenu);
 
     m_recentFiles = new KRecentFilesAction(this);
+
+    // jacks-customizations: Ctrl+Shift+Backspace to empty trash from any dolphin window
+    QAction *emptyTrashAction = actionCollection()->addAction(QStringLiteral("jacks_empty_trash"));
+    emptyTrashAction->setText(i18nc("@action", "Empty Trash"));
+    emptyTrashAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-delete")));
+    actionCollection()->setDefaultShortcut(emptyTrashAction, Qt::CTRL | Qt::SHIFT | Qt::Key_Backspace);
+    connect(emptyTrashAction, &QAction::triggered, this, [this]() {
+        Trash::empty(this);
+    });
 }
 
 void DolphinMainWindow::setupDockWidgets()
