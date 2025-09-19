@@ -8,6 +8,7 @@
  */
 
 #include "kitemlistcontroller.h"
+#include "views/dolphinview.h"
 
 #include "kitemlistselectionmanager.h"
 #include "kitemlistview.h"
@@ -32,6 +33,7 @@
 
 KItemListController::KItemListController(KItemModelBase *model, KItemListView *view, QObject *parent)
     : QObject(parent)
+    , m_parent(parent)
     , m_singleClickActivationEnforced(false)
     , m_selectionMode(false)
     , m_selectionTogglePressed(false)
@@ -245,8 +247,10 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
 
     // Mirror macOS accessibility behaviour: a freshly opened view does not focus the
     // first item automatically, but pressing any navigation key puts the focus on the
-    // first item initially.
+    // first item initially. Modifier-qualified keys (e.g. Ctrl+Down to open) are the
+    // exception and must fall through to their dedicated handlers below.
     if (index < 0
+        && !controlPressed && !shiftPressed
         && m_model && m_model->count() > 0
         && (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Left || key == Qt::Key_Right
             || key == Qt::Key_Home || (optionPressed && key == Qt::Key_Up)
@@ -340,7 +344,10 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         }
     }
 
-    const bool selectSingleItem = m_selectionBehavior != NoSelection && itemCount == 1 && navigationPressed;
+    // The single-item auto-select guard must only intercept plain navigation keys.
+    // Modifier-qualified keys (e.g. Ctrl+Down to open, Alt+Down to jump to the end)
+    // need to reach their dedicated handlers below, so they are excluded here.
+    const bool selectSingleItem = m_selectionBehavior != NoSelection && itemCount == 1 && navigationPressed && !controlPressed && !optionPressed;
 
     if (selectSingleItem) {
         const int current = m_selectionManager->currentItem();
@@ -403,6 +410,11 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
               Q_EMIT itemsActivated(selectedItems);
             } else if (selectedItems.count() == 1) {
               Q_EMIT itemActivated(selectedItems.first());
+            } else if (index >= 0) {
+              Q_EMIT itemActivated(index);
+            } else if (itemCount > 0) {
+              // Fresh view, nothing selected yet -- open the sole item.
+              Q_EMIT itemActivated(0);
             } else {
               Q_EMIT itemActivated(index);
             }
@@ -483,14 +495,28 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
 
     case Qt::Key_Enter:
     case Qt::Key_Return: {
-        const KItemSet selectedItems = m_selectionManager->selectedItems();
-        if (selectedItems.count() >= 2) {
-            Q_EMIT itemsActivated(selectedItems);
-        } else if (selectedItems.count() == 1) {
-            Q_EMIT itemActivated(selectedItems.first());
-        } else {
-            Q_EMIT itemActivated(index);
+        // const KItemSet selectedItems = m_selectionManager->selectedItems();
+        // if (selectedItems.count() >= 2) {
+        //     Q_EMIT itemsActivated(selectedItems);
+        // } else if (selectedItems.count() == 1) {
+        //     Q_EMIT itemActivated(selectedItems.first());
+        // } else {
+        //     Q_EMIT itemActivated(index);
+        // }
+
+        // When the KStandardItemListWidget is in edit mode, subsequent Enter/Return QKeyEvent are not captured here
+        DolphinView *dolphinView = qobject_cast<DolphinView *>(m_parent);
+        if (!dolphinView) {
+            break;
         }
+
+        // A freshly opened view may have no selection yet. Select the sole item so
+        // renameSelectedItems() has a target instead of silently doing nothing.
+        if (m_selectionManager->selectedItems().isEmpty() && itemCount == 1) {
+            m_selectionManager->setSelected(0, 1);
+        }
+
+        dolphinView->renameSelectedItems();
         break;
     }
 
