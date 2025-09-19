@@ -718,12 +718,8 @@ void KStandardItemListWidget::setTextColor(const QColor &color)
 
 QColor KStandardItemListWidget::textColor(const QWidget &widget) const
 {
-    if (!isSelected()) {
-        if (m_isHidden) {
-            return m_additionalInfoTextColor;
-        } else if (m_customTextColor.isValid()) {
-            return m_customTextColor;
-        }
+    if (!isActiveWindow() && (isSelected() || isCurrent())) {
+        return QColor(Qt::white);
     }
 
     const QPalette::ColorGroup group = isActiveWindow() && widget.hasFocus() ? QPalette::Active : QPalette::Inactive;
