@@ -102,6 +102,9 @@ public:
     void setPressed(bool enabled);
     bool isPressed() const;
 
+    void setHighlighted(bool highlighted);
+    bool isHighlighted() const;
+
     void setExpansionAreaHovered(bool hover);
     bool expansionAreaHovered() const;
 
@@ -214,6 +217,7 @@ protected:
     virtual void currentChanged(bool current);
     virtual void selectedChanged(bool selected);
     virtual void hoveredChanged(bool hovered);
+    virtual void highlightedChanged(bool highlighted);
     virtual void pressedChanged(bool pressed);
     virtual void alternateBackgroundChanged(bool enabled);
     virtual void siblingsInformationChanged(const QBitArray &current, const QBitArray &previous);
@@ -263,6 +267,7 @@ private:
     bool m_selected;
     bool m_current;
     bool m_hovered;
+    bool m_highlighted;
     bool m_expansionAreaHovered;
     bool m_alternateBackground;
     bool m_enabledSelectionToggle;
