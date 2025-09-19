@@ -102,6 +102,9 @@ public:
     void setPressed(bool enabled);
     bool isPressed() const;
 
+    void setHighlighted(bool highlighted);
+    bool isHighlighted() const;
+
     void setExpansionAreaHovered(bool hover);
     bool expansionAreaHovered() const;
 
@@ -262,6 +265,7 @@ private:
     bool m_selected;
     bool m_current;
     bool m_hovered;
+    bool m_highlighted;
     bool m_expansionAreaHovered;
     bool m_alternateBackground;
     bool m_enabledSelectionToggle;
