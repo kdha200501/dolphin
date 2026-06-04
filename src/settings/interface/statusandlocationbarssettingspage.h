@@ -48,11 +48,11 @@ private:
     QCheckBox *m_editableUrl;
     QCheckBox *m_showFullPath;
 
-    QButtonGroup *m_statusBarButtonGroup;
-    QRadioButton *m_showStatusBarSmall;
-    QRadioButton *m_showStatusBarFullWidth;
-    QCheckBox *m_showZoomSlider;
-    QRadioButton *m_disableStatusBar;
+    // QButtonGroup *m_statusBarButtonGroup;
+    // QRadioButton *m_showStatusBarSmall;
+    // QRadioButton *m_showStatusBarFullWidth;
+    // QCheckBox *m_showZoomSlider;
+    // QRadioButton *m_disableStatusBar;
 };
 
 #endif
