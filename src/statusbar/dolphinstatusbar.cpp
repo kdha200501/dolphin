@@ -24,6 +24,7 @@
 #include <QProgressBar>
 #include <QSlider>
 #include <QStyleOption>
+#include <QStyleOptionHeader>
 #include <QTimer>
 #include <QToolButton>
 
@@ -455,9 +456,32 @@ void DolphinStatusBar::paintEvent(QPaintEvent *paintEvent)
             style()->drawPrimitive(QStyle::PE_Frame, &opt, &p, this);
         }
     }
-    // Draw regular statusbar.
+    // Draw header-styled statusbar to match the column header row.
     else {
-        style()->drawPrimitive(QStyle::PE_PanelStatusBar, &opt, &p, this);
+        QStyleOptionHeader headerOpt;
+        headerOpt.initFrom(this);
+        headerOpt.state = QStyle::State_None | QStyle::State_Raised | QStyle::State_Horizontal;
+        if (isEnabled()) {
+            headerOpt.state |= QStyle::State_Enabled;
+        }
+        if (window() && window()->isActiveWindow()) {
+            headerOpt.state |= QStyle::State_Active;
+        }
+        headerOpt.rect = rect();
+        headerOpt.orientation = Qt::Horizontal;
+        headerOpt.position = QStyleOptionHeader::OnlyOneSection;
+        headerOpt.section = 0;
+        headerOpt.sortIndicator = QStyleOptionHeader::None;
+        headerOpt.text = QString();
+        style()->drawControl(QStyle::CE_Header, &headerOpt, &p, this);
+
+        // Draw a shadow along the bottom edge to visually separate the status bar from the content below.
+        const int shadowHeight = 4;
+        QColor shadowColor = palette().color(QPalette::Shadow);
+        QLinearGradient shadowGradient(0, rect().bottom() - shadowHeight, 0, rect().bottom() + 1);
+        shadowGradient.setColorAt(0.0, QColor(shadowColor.red(), shadowColor.green(), shadowColor.blue(), 0));
+        shadowGradient.setColorAt(1.0, QColor(shadowColor.red(), shadowColor.green(), shadowColor.blue(), 80));
+        p.fillRect(QRect(0, rect().bottom() - shadowHeight, rect().width(), shadowHeight + 1), QBrush(shadowGradient));
     }
 }
 
