@@ -75,6 +75,8 @@
 #include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
+#include <QFrame>
+#include <QLayout>
 
 DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     : QWidget(parent)
@@ -250,7 +252,19 @@ DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     connect(m_twoClicksRenamingTimer, &QTimer::timeout, this, &DolphinView::slotTwoClicksRenamingTimerTimeout);
 
     applyViewProperties();
-    m_topLayout->addWidget(m_container);
+
+    // Wrap the item list container in a QFrame so that the status bar and
+    // the column header row share the same visual border.
+    m_containerFrame = new QFrame(this);
+    m_containerFrame->setObjectName(QStringLiteral("viewContainerFrame"));
+    m_containerFrame->setStyleSheet(QStringLiteral("QFrame#viewContainerFrame { background: white; border: 2px solid black; }"));
+    m_containerFrameLayout = new QVBoxLayout(m_containerFrame);
+    m_containerFrameLayout->setSpacing(0);
+    m_containerFrameLayout->setContentsMargins(2, 2, 2, 2);
+    m_containerFrameLayout->addWidget(m_container);
+    m_container->setEnabledFrame(false);
+
+    m_topLayout->addWidget(m_containerFrame);
 
     loadDirectory(url);
 }
@@ -2585,7 +2599,20 @@ void DolphinView::setStatusBarOffset(int offset)
     }
 }
 
-QUrl DolphinView::viewPropertiesUrl() const
+void DolphinView::setStatusBarWidget(QWidget *statusBar)
+{
+    // Remove any previously inserted status bar from the wrapper layout.
+    if (m_containerFrameLayout->count() > 1) {
+        QLayoutItem *item = m_containerFrameLayout->itemAt(0);
+        if (item && item->widget() && item->widget() != m_container) {
+            m_containerFrameLayout->removeWidget(item->widget());
+        }
+    }
+    if (statusBar) {
+        statusBar->setParent(m_containerFrame);
+        m_containerFrameLayout->insertWidget(0, statusBar);
+    }
+}QUrl DolphinView::viewPropertiesUrl() const
 {
     if (m_viewPropertiesContext.isEmpty()) {
         return m_url;

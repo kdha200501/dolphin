@@ -147,6 +147,9 @@ int main(int argc, char **argv)
     parser.process(app);
     aboutData.processCommandLine(&parser);
 
+    // Custom: force the status bar mode, ignoring whatever is saved in the config file.
+    GeneralSettings::self()->setShowStatusBar(GeneralSettings::EnumShowStatusBar::FullWidth);
+
     const bool splitView = parser.isSet(QStringLiteral("split")) || GeneralSettings::splitView();
     const bool openFiles = parser.isSet(QStringLiteral("select"));
     const bool adminWorkerInfoWanted = parser.isSet(QStringLiteral("sudo")) || parser.isSet(QStringLiteral("admin"));
