@@ -10,7 +10,6 @@
 #include "diskspaceusagemenu.h"
 #include "spaceinfoobserver.h"
 
-#include <KCapacityBar>
 #include <KIO/Global>
 #include <KLocalizedString>
 
@@ -25,7 +24,6 @@ StatusBarSpaceInfo::StatusBarSpaceInfo(QWidget *parent)
 {
     hide(); // Only become visible when we have space info to show. @see StatusBarSpaceInfo::setShown().
 
-    m_capacityBar = new KCapacityBar(KCapacityBar::DrawTextInline, this);
     m_textInfoButton = new QToolButton(this);
     m_textInfoButton->setAutoRaise(true);
     m_textInfoButton->setPopupMode(QToolButton::InstantPopup);
@@ -35,9 +33,7 @@ StatusBarSpaceInfo::StatusBarSpaceInfo(QWidget *parent)
     m_textInfoButton->setMenu(menu);
 
     auto layout = new QHBoxLayout(this);
-    // We reduce the outside margin of the flat button so it visually has the same margin as the status bar text label on the other end of the bar.
     layout->setContentsMargins(2, -1, 0, -1); // "-1" makes it so the fixed height won't be ignored.
-    layout->addWidget(m_capacityBar);
     layout->addWidget(m_textInfoButton);
 }
 
@@ -128,15 +124,14 @@ void StatusBarSpaceInfo::slotValuesChanged()
     const quint64 used = size - available;
     const int percentUsed = qRound(100.0 * qreal(used) / qreal(size));
 
-    m_textInfoButton->setText(i18nc("@info:status Free disk space", "%1 free", KIO::convertSize(available)));
-    setToolTip(i18nc("tooltip:status Free disk space", "%1 free out of %2 (%3% used)", KIO::convertSize(available), KIO::convertSize(size), percentUsed));
-    m_textInfoButton->setToolTip(i18nc("@info:tooltip for the free disk space button",
-                                       "%1 free out of %2 (%3% used)\nPress to manage disk space usage.",
+    m_textInfoButton->setText(i18nc("@info:status Available disk space", "%1 available", KIO::convertSize(available)));
+    setToolTip(i18nc("tooltip:status Available disk space", "%1 available out of %2 (%3% used)", KIO::convertSize(available), KIO::convertSize(size), percentUsed));
+    m_textInfoButton->setToolTip(i18nc("@info:tooltip for the available disk space button",
+                                       "%1 available out of %2 (%3% used)\nPress to manage disk space usage.",
                                        KIO::convertSize(available),
                                        KIO::convertSize(size),
                                        percentUsed));
     setUpdatesEnabled(false);
-    m_capacityBar->setValue(percentUsed);
     setUpdatesEnabled(true);
 
     if (!isVisible()) {

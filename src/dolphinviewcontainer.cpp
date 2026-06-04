@@ -63,7 +63,6 @@ struct LayoutStructure {
     int view = 4;
     int selectionModeBottomBar = 5;
     int filterBar = 6;
-    int statusBar = 7;
 };
 constexpr LayoutStructure positionFor;
 
@@ -178,19 +177,15 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
-        m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
+        m_view->setStatusBarWidget(m_statusBar);
     }
     connect(m_statusBar, &DolphinStatusBar::modeUpdated, this, [this]() {
-        const bool statusBarInLayout = m_topLayout->itemAtPosition(positionFor.statusBar, 0);
         if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
-            if (!statusBarInLayout) {
-                m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
-                m_statusBar->setUrl(m_view->url());
-            }
+            m_view->setStatusBarWidget(m_statusBar);
+            m_statusBar->setUrl(m_view->url());
         } else {
-            if (statusBarInLayout) {
-                m_topLayout->removeWidget(m_statusBar);
-            }
+            m_view->setStatusBarWidget(nullptr);
+            m_statusBar->setParent(this);
         }
         updateStatusBarGeometry();
     });
@@ -836,11 +831,8 @@ void DolphinViewContainer::slotItemsActivated(const KFileItemList &items)
 
 void DolphinViewContainer::showItemInfo(const KFileItem &item)
 {
-    if (item.isNull()) {
-        m_statusBar->resetToDefaultText();
-    } else {
-        m_statusBar->setText(item.getStatusBarInfo());
-    }
+    Q_UNUSED(item)
+    m_statusBar->resetToDefaultText();
 }
 
 void DolphinViewContainer::closeFilterBar()

@@ -27,6 +27,7 @@
 
 typedef KIO::FileUndoManager::CommandType CommandType;
 class QVBoxLayout;
+class QFrame;
 class DolphinItemListView;
 class KFileItemModel;
 class KItemListContainer;
@@ -392,6 +393,12 @@ public:
      * item is covered by statusbar.
      */
     void setStatusBarOffset(int offset);
+
+    /**
+     * Embeds @p statusBar into the item list container so it appears inside the
+     * same visual frame as the column header row. Pass nullptr to detach.
+     */
+    void setStatusBarWidget(QWidget *statusBar);
 
 public Q_SLOTS:
 
@@ -985,6 +992,9 @@ private:
     QPointer<KIO::StatJob> m_statJobForStatusBarText;
 
     QVBoxLayout *m_topLayout;
+
+    QFrame *m_containerFrame;
+    QVBoxLayout *m_containerFrameLayout;
 
     KFileItemModel *m_model;
     DolphinItemListView *m_view;
