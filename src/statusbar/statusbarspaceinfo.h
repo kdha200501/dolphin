@@ -18,8 +18,6 @@ class QMouseEvent;
 class QToolButton;
 class QWidgetAction;
 
-class KCapacityBar;
-
 class SpaceInfoObserver;
 
 /**
@@ -74,7 +72,6 @@ private:
 
 private:
     QScopedPointer<SpaceInfoObserver> m_observer;
-    KCapacityBar *m_capacityBar;
     QToolButton *m_textInfoButton;
     QUrl m_url;
     /** Whether m_observer has already retrieved space information for the current url. */
