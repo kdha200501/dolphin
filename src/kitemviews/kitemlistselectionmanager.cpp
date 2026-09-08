@@ -204,9 +204,6 @@ KItemModelBase *KItemListSelectionManager::model() const
 void KItemListSelectionManager::setModel(KItemModelBase *model)
 {
     m_model = model;
-    if (model && model->count() > 0) {
-        m_currentItem = 0;
-    }
 }
 
 void KItemListSelectionManager::itemsInserted(const KItemRangeList &itemRanges)
@@ -215,9 +212,7 @@ void KItemListSelectionManager::itemsInserted(const KItemRangeList &itemRanges)
     const KItemSet previousSelection = selectedItems();
 
     // Update the current item
-    if (m_currentItem < 0) {
-        setCurrentItem(0);
-    } else {
+    if (m_currentItem >= 0) {
         const int previousCurrent = m_currentItem;
         int inc = 0;
         for (const KItemRange &itemRange : itemRanges) {
