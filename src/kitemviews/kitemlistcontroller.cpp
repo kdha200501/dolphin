@@ -243,6 +243,32 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
     const bool controlPressed = event->modifiers() & Qt::ControlModifier;
     const bool optionPressed = event->modifiers() & Qt::AltModifier;
 
+    // Mirror macOS accessibility behaviour: a freshly opened view does not focus the
+    // first item automatically, but pressing any navigation key puts the focus on the
+    // first item initially.
+    if (index < 0
+        && m_model && m_model->count() > 0
+        && (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Left || key == Qt::Key_Right
+            || key == Qt::Key_Home || (optionPressed && key == Qt::Key_Up)
+            || key == Qt::Key_End || (optionPressed && key == Qt::Key_Down)
+            || key == Qt::Key_PageUp || key == Qt::Key_PageDown)) {
+        m_selectionManager->setCurrentItem(0);
+
+        if (m_selectionBehavior == SingleSelection
+            || (m_selectionBehavior == MultiSelection && !m_selectionMode)) {
+            m_selectionManager->clearSelection();
+            m_selectionManager->setSelected(0, 1);
+        }
+
+        m_keyboardAnchorIndex = 0;
+        m_keyboardAnchorPos = keyboardAnchorPos(0);
+        if (m_view) {
+            m_view->scrollToItem(0);
+        }
+        event->accept();
+        return true;
+    }
+
     const bool horizontalScrolling = m_view->scrollOrientation() == Qt::Horizontal;
 
     if (m_view->layoutDirection() == Qt::RightToLeft) {
