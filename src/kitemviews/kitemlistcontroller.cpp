@@ -1748,6 +1748,11 @@ bool KItemListController::onPress(const QPointF &pos, const Qt::KeyboardModifier
     if (clearSelection) {
         const int selectedItemsCount = m_selectionManager->selectedItems().count();
         m_selectionManager->clearSelection();
+        if (!m_pressedIndex.has_value()) {
+            // A click in an empty region clears the selection; it must also drop
+            // the current item, which carries its own highlight state.
+            m_selectionManager->setCurrentItem(-1);
+        }
         // clear and bail when we got an existing multi-selection
         if (selectedItemsCount > 1 && m_pressedIndex.has_value()) {
             const auto row = m_view->m_visibleItems.value(m_pressedIndex.value());
