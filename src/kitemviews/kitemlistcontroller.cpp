@@ -381,6 +381,12 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
             event->ignore();
             return false;
         }
+        if (m_view->supportsItemExpanding() && !m_model->isExpandable(index)) {
+            // In details view mode a file or an empty folder has nothing to expand,
+            // so pressing the right arrow key must not move to the next item.
+            event->ignore();
+            return false;
+        }
         if (index < itemCount - 1) {
             ++index;
             m_keyboardAnchorIndex = index;
