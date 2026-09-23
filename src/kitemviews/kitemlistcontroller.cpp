@@ -971,7 +971,17 @@ bool KItemListController::dragMoveEvent(QGraphicsSceneDragDropEvent *event, cons
         event->ignore();
     } else {
         if (m_model->supportsDropping(index)) {
-            event->setDropAction(event->proposedAction());
+            // Same-device-aware preferred action: pick the default from the
+            // source vs. destination device comparison (Move on same device,
+            // Copy on a different one) mirroring what KIO::DropJob does on
+            // drop.  Key modifiers are handled by the compositor (kwin) on top
+            // of this, so we report the unmodified default here.
+            const auto urls = event->mimeData()->urls();
+            if (!urls.isEmpty()) {
+                event->setDropAction(DragAndDropHelper::suggestedDropAction(urls, hoveredDir));
+            } else {
+                event->setDropAction(event->proposedAction());
+            }
             event->accept();
         } else {
             event->setDropAction(Qt::IgnoreAction);
@@ -1528,7 +1538,12 @@ void KItemListController::startDragging()
     const QPoint hotSpot((pixmap.width() / pixmap.devicePixelRatio()) / 2, 0);
     drag->setHotSpot(hotSpot);
 
+    DragAndDropHelper::setCurrentDragAction(Qt::IgnoreAction);
+    connect(drag, &QDrag::actionChanged, this, [](Qt::DropAction action) {
+        DragAndDropHelper::setCurrentDragAction(action);
+    });
     drag->exec(Qt::MoveAction | Qt::CopyAction | Qt::LinkAction, Qt::CopyAction);
+    DragAndDropHelper::setCurrentDragAction(Qt::IgnoreAction);
 
     QAccessibleEvent accessibilityEvent(view(), QAccessible::DragDropStart);
     QAccessible::updateAccessibility(&accessibilityEvent);
