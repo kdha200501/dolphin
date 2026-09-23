@@ -138,6 +138,10 @@ static bool isInternalDrag(const QMimeData *mimeData)
 
 void PlacesPanel::dragMoveEvent(QDragMoveEvent *event)
 {
+    // The base implementation calls acceptProposedAction(), which would reset
+    // any drop action set here, so it must run first.
+    KFilePlacesView::dragMoveEvent(event);
+
     const QModelIndex index = indexAt(event->position().toPoint());
     if (index.isValid()) {
         auto *placesModel = static_cast<KFilePlacesModel *>(model());
@@ -149,13 +153,12 @@ void PlacesPanel::dragMoveEvent(QDragMoveEvent *event)
             const QUrl url = placesModel->url(index);
             if (!url.isValid() || !KProtocolManager::supportsWriting(url)) {
                 event->setDropAction(Qt::IgnoreAction);
+                event->ignore();
             } else {
                 DragAndDropHelper::updateDropAction(event, url);
             }
         }
     }
-
-    KFilePlacesView::dragMoveEvent(event);
 }
 
 void PlacesPanel::slotConfigureTrash()
