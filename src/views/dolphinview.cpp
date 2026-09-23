@@ -1434,6 +1434,10 @@ void DolphinView::slotItemDropEvent(int index, QGraphicsSceneDragDropEvent *even
     }
 
     QDropEvent dropEvent(event->pos().toPoint(), event->possibleActions(), event->mimeData(), event->buttons(), event->modifiers());
+    // The constructor derives the action from Qt's modifier mapping, which can differ from
+    // the action the compositor selected (and the drag glyph showed); prefer the latter.
+    const Qt::DropAction dragAction = DragAndDropHelper::currentDragAction();
+    dropEvent.setDropAction(dragAction != Qt::IgnoreAction ? dragAction : event->dropAction());
     dropUrls(destUrl, &dropEvent, this);
 
     setActive(true);
