@@ -7,15 +7,78 @@
 
 #include "draganddrophelper.h"
 
+#include <KFileItem>
 #include <KIO/DropJob>
 #include <KJobWidgets>
+#include <KMountPoint>
 
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QUrl>
+
+#include <algorithm>
 
 QHash<QUrl, bool> DragAndDropHelper::m_urlListMatchesUrlCache;
+
+Qt::DropAction DragAndDropHelper::suggestedDropAction(const QList<QUrl> &urls, const QUrl &destUrl)
+{
+    if (urls.isEmpty()) {
+        return Qt::CopyAction;
+    }
+
+    // Every source is already directly inside destUrl (e.g. hovering the empty
+    // space of the same window/folder it's already showing). This is a
+    // same-location no-op regardless of scheme, so it doesn't need a
+    // mount-point lookup and must be checked before the "not local" bail-out
+    // below, or remote (e.g. sftp) locations would always show Copy even when
+    // hovering within the very same window. Mirrors KIO::DropJob's own
+    // equalDestination check so the hover glyph and the actual (no-op) drop
+    // decision agree.
+    const bool equalDestination = std::all_of(urls.cbegin(), urls.cend(), [&destUrl](const QUrl &url) {
+        return destUrl.matches(url.adjusted(QUrl::RemoveFilename), QUrl::StripTrailingSlash);
+    });
+    if (equalDestination) {
+        return Qt::MoveAction;
+    }
+
+    // Conservative fallbacks: a destination we can't resolve to a local mount
+    // point (remote, trash, non-URL) is never a same-device move.
+    if (!destUrl.isLocalFile()) {
+        return Qt::CopyAction;
+    }
+
+    const KMountPoint::List mountPoints = KMountPoint::currentMountPoints();
+
+    const KMountPoint::Ptr destMountPoint = mountPoints.findByPath(destUrl.path());
+    const QString destDevice = destMountPoint ? destMountPoint->mountedFrom() : QString();
+    if (destDevice.isEmpty()) {
+        // Local destination with no matching mount entry; be conservative.
+        return Qt::CopyAction;
+    }
+
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile()) {
+            return Qt::CopyAction;
+        }
+
+        const KMountPoint::Ptr sourceMountPoint = mountPoints.findByPath(url.path());
+        const QString sourceDevice = sourceMountPoint ? sourceMountPoint->mountedFrom() : QString();
+        if (sourceDevice.isEmpty()) {
+            // Local file we can't resolve a mount for; be conservative.
+            return Qt::CopyAction;
+        }
+
+        // A symlink crossing to a different device is still a "move" in the
+        // user's mental model; treat it as same-device like KIO::DropJob does.
+        if (sourceDevice != destDevice && !KFileItem(url).isLink()) {
+            return Qt::CopyAction;
+        }
+    }
+
+    return Qt::MoveAction;
+}
 
 bool DragAndDropHelper::urlListMatchesUrl(const QList<QUrl> &urls, const QUrl &destUrl)
 {

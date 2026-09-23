@@ -70,6 +70,20 @@ public:
     static bool urlListMatchesUrl(const QList<QUrl> &urls, const QUrl &destUrl);
 
     /**
+     * Suggests the default (unmodified) drop action for dropping \a urls into
+     * \a destUrl, based on where the sources live relative to the destination:
+     *
+     *  - Qt::MoveAction when every source is a local file on the same block
+     *    device as the destination (or a symlink crossing devices), and
+     *  - Qt::CopyAction otherwise.
+     *
+     * This mirrors the decision KIO::DropJob makes on the drop, so the hover
+     * glyph and the final job agree. Uses only released KIOCore (KMountPoint /
+     * KFileItem), independent of any newer KIO symbol.
+     */
+    static Qt::DropAction suggestedDropAction(const QList<QUrl> &urls, const QUrl &destUrl);
+
+    /**
      * @return True if mimeData contains Ark's drag and drop mime types.
      */
     static bool isArkDndMimeType(const QMimeData *mimeData);
