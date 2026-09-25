@@ -21,7 +21,7 @@ void DolphinUrlNavigatorsController::slotReadSettings()
     if (GeneralSettings::modifiedStartupSettings()) {
         for (DolphinUrlNavigator *urlNavigator : s_instances) {
             urlNavigator->setUrlEditable(GeneralSettings::editableUrl());
-            urlNavigator->setShowFullPath(GeneralSettings::showFullPath());
+            urlNavigator->setShowFullPath(true);
             urlNavigator->setHomeUrl(Dolphin::homeUrl());
         }
     }
