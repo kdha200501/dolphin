@@ -350,7 +350,7 @@ void DolphinStatusBar::contextMenuEvent(QContextMenuEvent *event)
 
     QAction *showZoomSliderAction = menu.addAction(i18nc("@action:inmenu", "Show Zoom Slider"));
     showZoomSliderAction->setCheckable(true);
-    showZoomSliderAction->setChecked(GeneralSettings::showZoomSlider());
+    showZoomSliderAction->setChecked(false);
 
     const QAction *action = menu.exec(event->reason() == QContextMenuEvent::Reason::Mouse ? QCursor::pos() : mapToGlobal(QPoint(width() / 2, height() / 2)));
     if (action == showZoomSliderAction) {
@@ -407,7 +407,7 @@ void DolphinStatusBar::setExtensionsVisible(bool visible)
 {
     bool showZoomSlider = visible;
     if (visible) {
-        showZoomSlider = GeneralSettings::showZoomSlider() && GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth;
+        showZoomSlider = false;
     }
 
     m_zoomSlider->setVisible(showZoomSlider);
