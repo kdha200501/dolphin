@@ -114,11 +114,7 @@ void PlacesPanel::proceedWithTearDown()
 
 void PlacesPanel::readSettings()
 {
-    if (GeneralSettings::autoExpandFolders()) {
-        setDragAutoActivationDelay(750);
-    } else {
-        setDragAutoActivationDelay(0);
-    }
+    setDragAutoActivationDelay(750);
 
     const int iconSize = qMax(0, PlacesPanelSettings::iconSize());
     setIconSize(QSize(iconSize, iconSize));
