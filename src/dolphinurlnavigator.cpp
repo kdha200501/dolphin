@@ -31,7 +31,7 @@ DolphinUrlNavigator::DolphinUrlNavigator(const QUrl &url, QWidget *parent)
 {
     const GeneralSettings *settings = GeneralSettings::self();
     setUrlEditable(settings->editableUrl());
-    setShowFullPath(settings->showFullPath());
+    setShowFullPath(true);
     setHomeUrl(Dolphin::homeUrl());
     setPlacesSelectorVisible(DolphinUrlNavigatorsController::placesSelectorVisible());
     editor()->setCompletionMode(KCompletion::CompletionMode(settings->urlCompletionMode()));
