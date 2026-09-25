@@ -130,7 +130,7 @@ DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     applyModeToView();
 
     KItemListController *controller = new KItemListController(m_model, m_view, this);
-    controller->setAutoActivationEnabled(GeneralSettings::autoExpandFolders());
+    controller->setAutoActivationEnabled(true);
     connect(controller, &KItemListController::doubleClickViewBackground, this, &DolphinView::doubleClickViewBackground);
 
     // The EnlargeSmallPreviews setting can only be changed after the model
@@ -612,7 +612,7 @@ void DolphinView::readSettings()
     m_view->readSettings();
     applyViewProperties();
 
-    m_container->controller()->setAutoActivationEnabled(GeneralSettings::autoExpandFolders());
+    m_container->controller()->setAutoActivationEnabled(true);
 
     const int newZoomLevel = m_view->zoomLevel();
     if (newZoomLevel != oldZoomLevel) {
