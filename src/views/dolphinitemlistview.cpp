@@ -75,7 +75,7 @@ void DolphinItemListView::setEnabledSelectionToggles(DolphinItemListView::Select
         return;
     }
     case FollowSetting: {
-        setEnabledSelectionToggles(GeneralSettings::showSelectionToggle());
+        setEnabledSelectionToggles(false);
         return;
     }
     }
