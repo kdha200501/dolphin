@@ -1613,9 +1613,7 @@ void DolphinMainWindow::updateHamburgerMenu()
         menu->addAction(ac->action(QStringLiteral("show_hidden_files")));
         menu->addAction(ac->action(QStringLiteral("sort")));
         menu->addAction(ac->action(QStringLiteral("additional_info")));
-        if (!GeneralSettings::showStatusBar() || !GeneralSettings::showZoomSlider()) {
-            menu->addAction(ac->action(QStringLiteral("zoom")));
-        }
+        menu->addAction(ac->action(QStringLiteral("zoom")));
     }
     menu->addAction(ac->action(QStringLiteral("panels")));
 
