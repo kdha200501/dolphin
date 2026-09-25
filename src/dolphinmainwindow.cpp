@@ -3231,7 +3231,7 @@ void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)
     }
 
     GeneralSettings *settings = GeneralSettings::self();
-    QString clickAction = settings->doubleClickViewAction();
+    QString clickAction = QStringLiteral("none");
 
     DolphinView *view = activeViewContainer()->view();
     if (view == nullptr || clickAction == "none") {
