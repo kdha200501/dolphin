@@ -27,6 +27,7 @@
 #include "panels/folders/folderspanel.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
+#include "quicklookclient.h"
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
@@ -88,10 +89,12 @@
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QScreen>
 #include <QShowEvent>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QToolButton>
+#include <QWindow>
 #include <QtConcurrentRun>
 #include <dolphindebug.h>
 
@@ -173,6 +176,54 @@ DolphinMainWindow::DolphinMainWindow()
     }
 
     setAcceptDrops(true);
+
+    // Live-update: when the Quick Look window closes (Space again / Escape),
+    // remember the fact so the view can re-send the current selection the next
+    // time it changes. The signal is broadcast to every window's watcher, so
+    // only this window's flag is cleared here; re-sends are then gated on this
+    // window having triggered the preview (see slotSelectionChanged()).
+    m_quickLookClosedWatcher = QuickLookClient::connectClosed(this, [this] {
+        const bool wasOwner = QuickLookClient::isPreviewOwner(this);
+        m_quickLookOpen = false;
+        m_quickLookCloseTimer->stop();
+        if (wasOwner) {
+            // The preview takes the keyboard focus while it is open (so it can
+            // be driven by Escape/Space/arrows); give it back to the view when
+            // it closes, or the active view can no longer receive keyboard
+            // input (e.g. another Space to re-open the preview).
+            m_activeViewContainer->view()->setFocus();
+        }
+    });
+
+    m_quickLookCloseTimer = new QTimer(this);
+    m_quickLookCloseTimer->setInterval(150);
+    m_quickLookCloseTimer->setSingleShot(true);
+    connect(m_quickLookCloseTimer, &QTimer::timeout, this, [this]() {
+        // Both armers (a blank click, a window focus loss - see
+        // armQuickLookCloseTimer) keep the close behind this grace so a
+        // follow-up selection change cancels it.
+        //
+        // - a blank click emptied the selection: if this window owns the open
+        //   preview, close it the usual way (clearing our flag and restoring
+        //   the view focus, see the closed watcher above); if it does not own
+        //   it, the preview was orphaned by the click (its owner is another
+        //   process whose selection is not ours), so dismiss it owner-less.
+        // - a window focus loss moved the focus away from this window: only
+        //   close the preview when this window is STILL the owner - if the
+        //   focus went to another Dolphin window (it took over on its
+        //   activation) or to the desktop (it retakes on its focus gain), the
+        //   local ownership (or the open flag) changed in between and there is
+        //   nothing to close.
+        if (m_quickLookCloseReason == QuickLookCloseReason::FocusLost
+                && !(m_quickLookOpen && QuickLookClient::isPreviewOwner(this))) {
+            return;
+        }
+        if (m_quickLookOpen && QuickLookClient::isPreviewOwner(this)) {
+            closeQuickLook();
+        } else if (!QuickLookClient::previewOwner().isEmpty()) {
+            QuickLookClient::dismissPreview();
+        }
+    });
 
     auto *navigatorsWidgetAction = new DolphinNavigatorsWidgetAction(this);
     actionCollection()->addAction(QStringLiteral("url_navigators"), navigatorsWidgetAction);
@@ -303,6 +354,7 @@ QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
 
 void DolphinMainWindow::openDirectories(const QList<QUrl> &dirs, bool splitView)
 {
+    armQuickLookTakeover();
     m_tabWidget->openDirectories(dirs, splitView);
 }
 
@@ -313,6 +365,7 @@ void DolphinMainWindow::openDirectories(const QStringList &dirs, bool splitView)
 
 void DolphinMainWindow::openFiles(const QList<QUrl> &files, bool splitView)
 {
+    armQuickLookTakeover();
     m_tabWidget->openFiles(files, splitView);
 }
 
@@ -394,6 +447,58 @@ void DolphinMainWindow::pasteIntoFolder()
     m_activeViewContainer->view()->pasteIntoFolder();
 }
 
+void DolphinMainWindow::armQuickLookNavigationGuard(DolphinViewContainer *container)
+{
+    if (container == m_activeViewContainer) {
+        m_quickLookNavigationInProgress = true;
+    }
+}
+
+void DolphinMainWindow::takeOverQuickLookOnFocus(const KFileItemList &selection)
+{
+    // Hand the shared Quick Look preview over to this window's selection (a
+    // requestPreview() is an explicit trigger, so the service switches its
+    // ownership to this process and the client-side ownership to this window).
+    // Used from the WindowActivate handler and from slotSelectionChanged()
+    // (the isActiveWindow() branch) - the focus can reach either of them with
+    // the new selection still missing, and both take over when they get it.
+    m_quickLookOpen = true;
+    QuickLookClient::setPreviewOwner(this);
+    m_quickLookCloseTimer->stop();
+    QList<QUrl> urls;
+    urls.reserve(selection.size());
+    for (const KFileItem &item : selection) {
+        urls << item.url();
+    }
+    QuickLookClient::requestPreview(urls, quickLookAnchorScreenName());
+}
+
+void DolphinMainWindow::armQuickLookCloseTimer(QuickLookCloseReason reason)
+{
+    m_quickLookCloseReason = reason;
+    m_quickLookCloseTimer->start();
+}
+
+void DolphinMainWindow::armQuickLookTakeover()
+{
+    // An explicit open request (a directory opened from the desktop, the D-Bus
+    // openFiles/openDirectories API, "Open in New Tab/Window/Split View")
+    // creates the view that is navigated to *before* this window is wired up
+    // (new DolphinTabPage -> new DolphinView(url), whose constructor already
+    // loads the directory - in a fresh instance openDirectories() even creates
+    // the first tab, so no active view exists yet) - the
+    // KUrlNavigator::urlChanged -> changeUrl() connection only exists in
+    // connectViewSignals(), which runs from activeViewChanged() after the
+    // construction, so for the initial URL changeUrl() never runs and the
+    // Quick Look takeover flag would never be armed. Arm it here, on the open
+    // request. The flag is consumed by the first non-empty selection of the
+    // window (see slotSelectionChanged()); empty selections - including the
+    // one the fresh load emits - do not consume it. It cannot be consumed by
+    // a stale selection of a *previous* view: that view is disconnected from
+    // this window when the new one becomes active.
+    m_takeOverQuickLookOnNextSelection = true;
+}
+
 void DolphinMainWindow::changeUrl(const QUrl &url)
 {
     if (!KProtocolManager::supportsListing(url)) {
@@ -403,6 +508,16 @@ void DolphinMainWindow::changeUrl(const QUrl &url)
         return;
     }
 
+    // Entering a directory (the keyboard "enter" shortcut opens a selected
+    // directory) resets the view, which clears the selection. The Quick Look
+    // "close on empty selection" heuristic would read that as a blank click and
+    // close the preview. A navigation has no re-select to cancel the close, so
+    // suppress it across the load (cleared in slotDirectoryLoadingCompleted()).
+    m_quickLookNavigationInProgress = true;
+    // This is an explicit user navigation: if a Quick Look preview is open
+    // that this window does not own, the loaded directory's first selection is
+    // handed to it (see slotSelectionChanged()).
+    m_takeOverQuickLookOnNextSelection = true;
     m_activeViewContainer->setUrl(url);
     updateFileAndEditActions();
     updatePasteAction();
@@ -449,6 +564,107 @@ void DolphinMainWindow::slotSelectionChanged(const KFileItemList &selection)
         compareFilesAction->setEnabled(isKompareInstalled());
     } else {
         compareFilesAction->setEnabled(false);
+    }
+
+    // Live-update: if a Quick Look preview is open, keep it in sync with the
+    // (moved) selection, mirroring the real Quick Look behavior of following
+    // arrow-key navigation while open. Only this window re-sends when it is the
+    // one that opened the preview: Quick Look is a single shared window, so
+    // gating on the triggering window keeps a background window's selection
+    // from stealing the preview the user is looking at. (A plain
+    // isActiveWindow() check would not work here - Quick Look takes focus on
+    // show, so the caller is never the active window while the preview is
+    // open.) Two-level ownership: this client-side gate handles viewers in
+    // this process; the service itself enforces the same rule across
+    // processes, ignoring live-updates from any caller other than the one
+    // that last explicitly opened the preview (QuickLookClient::setPreviewOwner
+    // / requestPreview).
+    // A non-empty selection means the blank click that may have armed the close
+    // grace timer (a click on the empty view) was actually an item click - the
+    // selection cleared first and re-selected in this call, so cancel it. Done
+    // here, before the ownership branching, so it also covers a preview owned
+    // by another process (the orphan-dismissal path below) that has no
+    // per-branch cancel of its own.
+    if (!selection.isEmpty()) {
+        m_quickLookCloseTimer->stop();
+    }
+
+    if (m_quickLookOpen && QuickLookClient::isPreviewOwner(this)) {
+        if (selection.isEmpty()) {
+            // The selection is gone (a click on the empty view is the common
+            // case): there is nothing to preview, so close the modal. The
+            // service cannot detect this itself - the click only moves the
+            // focus to a window it does not see, without any focus change of
+            // its own - so the owner must say. Do it through the grace timer
+            // though: an item click clears the selection first and re-selects
+            // in the next selectionChanged, which cancels the timer (a direct
+            // close would kill every item click). An in-progress directory
+            // change also empties the selection transiently (it resets the view
+            // and loads a new one) - that is not a click, so ignore it here.
+            if (!m_quickLookNavigationInProgress) {
+                armQuickLookCloseTimer(QuickLookCloseReason::BlankClick);
+            }
+        } else {
+            m_quickLookCloseTimer->stop();
+            QList<QUrl> urls;
+            urls.reserve(selection.size());
+            for (const KFileItem &item : selection) {
+                urls << item.url();
+            }
+            QuickLookClient::previewUrls(urls);
+        }
+    } else if (!QuickLookClient::isPreviewOwner(this) && !selection.isEmpty()
+               && (m_takeOverQuickLookOnNextSelection || isActiveWindow())) {
+        // A preview is open that this window's process does not own, and this
+        // window's active view just (re)selected items: hand the preview over
+        // to this window's selection, the way macOS Quick Look follows the
+        // focus, the same way a desktop selection does in
+        // FolderModel::retakeQuickLookOnFocus().
+        //
+        // Two triggers:
+        // - m_takeOverQuickLookOnNextSelection: the explicit-navigation
+        //   takeover (changeUrl set the flag, e.g. a directory opened from the
+        //   desktop);
+        // - isActiveWindow(): the selection change itself moved the focus to
+        //   this window - a window activation reaches slotWindowActivated
+        //   BEFORE the view's selection is updated, so the activation-time
+        //   takeover saw the old (often empty) selection; the new selection
+        //   arrives here, after the focus change, and triggers the takeover.
+        //
+        // Guards, in order:
+        // - the first branch already handles the case where this window is the
+        //   owner; isPreviewOwner() additionally keeps a preview that *another
+        //   window in this process* owns (the service would accept the explicit
+        //   call anyway as same-sender, so the takeover has to be suppressed
+        //   here, in the only place this process knows its own owner);
+        // - only the focused window's selection can reach this branch
+        //   (background views' selectionChanged is not routed to the main
+        //   window), so a background window still cannot steal the preview;
+        // - an empty previewOwner() result (service not running / no owner)
+        //   means no open preview to take over.
+        // The flag - if it was set - is consumed here; it is dropped again if
+        // the load does not settle.
+        m_takeOverQuickLookOnNextSelection = false;
+        const QString owner = QuickLookClient::previewOwner();
+        if (!owner.isEmpty()) {
+            takeOverQuickLookOnFocus(selection);
+        }
+    } else if (!QuickLookClient::isPreviewOwner(this) && selection.isEmpty() && isActiveWindow()) {
+        // A blank click emptied the selection, but an open Quick Look preview is
+        // owned by a *different* process (e.g. the desktop opened it and this
+        // window does not believe its own preview is open). The modal would be
+        // orphaned - its owner has no view driving it in this window to dismiss
+        // it on a blank click. Dismiss it (non-owner, owner-less), the same way
+        // the desktop does for the symmetric case. Gated on the navigation guard
+        // (a directory change clears the selection transiently) and done through
+        // the grace timer (an item click clears the selection first and
+        // re-selects it in the next selectionChanged, which cancels the timer).
+        // The service closes for an empty list only when a preview is open; if
+        // there is none, peeking the owner would mean a round trip the timer
+        // pays, so that is done in the timer handler.
+        if (!m_quickLookNavigationInProgress) {
+            armQuickLookCloseTimer(QuickLookCloseReason::BlankClick);
+        }
     }
 
     Q_EMIT selectionChanged(selection);
@@ -521,11 +737,13 @@ void DolphinMainWindow::addToPlaces()
 
 DolphinTabPage *DolphinMainWindow::openNewTab(const QUrl &url)
 {
+    armQuickLookTakeover();
     return m_tabWidget->openNewTab(url, QUrl());
 }
 
 void DolphinMainWindow::openNewTabAndActivate(const QUrl &url)
 {
+    armQuickLookTakeover();
     m_tabWidget->openNewActivatedTab(url, QUrl());
 }
 
@@ -599,6 +817,7 @@ void DolphinMainWindow::openInSplitView(const QUrl &url)
         return;
     }
 
+    armQuickLookTakeover();
     DolphinTabPage *tabPage = m_tabWidget->currentTabPage();
     if (tabPage->splitViewEnabled()) {
         tabPage->switchActiveView();
@@ -629,11 +848,71 @@ void DolphinMainWindow::showTarget()
 
 bool DolphinMainWindow::event(QEvent *event)
 {
-    if (event->type() == QEvent::ShortcutOverride) {
-        const QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
-        if (keyEvent->key() == Qt::Key_Space && m_activeViewContainer->view()->handleSpaceAsNormalKey()) {
-            event->accept();
-            return true;
+    if (event->type() == QEvent::WindowActivate && !m_quickLookNavigationInProgress) {
+        // The window gained focus. A focus change comes with no
+        // selectionChanged (the selection this window already had is not
+        // re-emitted), so the shared Quick Look preview cannot be kept in
+        // sync by the selection-based path: the focus is handled here, the
+        // preview follows the focus (macOS Quick Look style).
+        //
+        // - the active view has a selection, and the preview is open without
+        //   being owned by this window: take it over - a requestPreview() is
+        //   an explicit trigger, the service switches its ownership to this
+        //   window, and the selection-based live updates apply again from here
+        //   on (the local-ownership flag can also be STALE here: it points to
+        //   this window while a foreign process took the preview over, so the
+        //   service's owner is the source of truth - a same-process explicit
+        //   call is accepted by the service anyway);
+        // - the active view has no selection, and the preview is open without
+        //   being owned by this window: it is orphaned - its owner has no view
+        //   driving it, and nothing will re-select here. Arm the close grace
+        //   timer as a focus loss (its handler closes it only when this window
+        //   is still the owner; an item click that follows cancels it, see
+        //   slotSelectionChanged()).
+        // - everything else (no open preview, or this window owns it): nothing
+        //   to do - an owner is live-updated by selectionChanged(), and a
+        //   closed preview must NOT be re-opened by a mere focus change.
+        //
+        // A focus change can reach here BEFORE the view's selection is updated
+        // (an item click applies it later, through slotSelectionChanged()), so
+        // a selection that arrives after the activation is taken over there
+        // too (the isActiveWindow() branch of the takeover) - covering the
+        // common case of clicking an item in the new window.
+        //
+        // Gated on the navigation guard: a directory change clears the
+        // selection transiently, which is neither a takeover nor a blank
+        // click. The previewOwner() peek is passive (a NameHasOwner check, it
+        // never activates the daemon), so focusing a window while no preview
+        // is open does no work at all.
+        const DolphinView *view = m_activeViewContainer ? m_activeViewContainer->view() : nullptr;
+        if (view) {
+            const bool amLocalOwner = QuickLookClient::isPreviewOwner(this);
+            const KFileItemList selection = view->selectedItems();
+            const QString owner = QuickLookClient::previewOwner();
+            if (selection.isEmpty()) {
+                if (!amLocalOwner && !owner.isEmpty()) {
+                    armQuickLookCloseTimer(QuickLookCloseReason::FocusLost);
+                }
+            } else if (!amLocalOwner) {
+                if (!owner.isEmpty()) {
+                    takeOverQuickLookOnFocus(selection);
+                }
+            } else if (!owner.isEmpty() && owner != QuickLookClient::ownUniqueName()) {
+                // amLocalOwner, but the local flag can be stale (see above):
+                // the service's owner is the source of truth.
+                takeOverQuickLookOnFocus(selection);
+            }
+        }
+    } else if (event->type() == QEvent::WindowDeactivate) {
+        // The window lost focus to another window. If it owns the shared Quick
+        // Look preview, close it - unless the focus went to a window that takes
+        // the preview over (another Dolphin window on its activation, or the
+        // desktop on its focus gain), which in the meantime re-owns it and
+        // cancels this (the handler only acts while this window is still the
+        // owner). Arming the grace timer (rather than closing immediately) is
+        // what bridges that hand-off.
+        if (m_quickLookOpen && QuickLookClient::isPreviewOwner(this)) {
+            armQuickLookCloseTimer(QuickLookCloseReason::FocusLost);
         }
     }
 
@@ -975,6 +1254,20 @@ void DolphinMainWindow::updatePasteAction()
 
 void DolphinMainWindow::slotDirectoryLoadingCompleted()
 {
+    // The new directory has loaded: drop the Quick Look "close on empty
+    // selection" guard (see changeUrl()). But the navigation's selection-clear
+    // is delivered to slotSelectionChanged() one event-loop turn later
+    // (DolphinView debounces the selection change through a 0 ms timer), so a
+    // fast (cached) load completes before that event reaches us and disarming
+    // right now would let the stale empty selection arm the close timer. Post
+    // the disarm so it runs after the pending selection event (equal-expiry
+    // timers are processed FIFO, so the selection event comes first).
+    QTimer::singleShot(0, this, [this]() {
+        m_quickLookNavigationInProgress = false;
+        if (m_quickLookCloseTimer) {
+            m_quickLookCloseTimer->stop();
+        }
+    });
     updatePasteAction();
 }
 
@@ -1557,6 +1850,62 @@ void DolphinMainWindow::openContextMenu(const QPoint &pos, const KFileItem &item
     }
 }
 
+void DolphinMainWindow::showQuickLook(const KFileItemList &items)
+{
+    if (items.isEmpty()) {
+        return;
+    }
+
+    // A second Space while the preview this window owns is open closes it,
+    // like macOS Quick Look does (the view keeps the keyboard focus while the
+    // preview is open, so it can close its own preview from the view keys);
+    // it is also where the preview would re-open if the user had moved the
+    // selection to other item(s) while it was open.
+    if (m_quickLookOpen && QuickLookClient::isPreviewOwner(this)) {
+        closeQuickLook();
+        return;
+    }
+
+    m_quickLookOpen = true;
+    // Become the owner of the shared preview; only the owner re-sends live
+    // updates, so a background window cannot steal the preview from this one.
+    QuickLookClient::setPreviewOwner(this);
+
+    QList<QUrl> urls;
+    urls.reserve(items.size());
+    for (const KFileItem &item : items) {
+        urls << item.url();
+    }
+    QuickLookClient::requestPreview(urls, quickLookAnchorScreenName());
+}
+
+QString DolphinMainWindow::quickLookAnchorScreenName() const
+{
+    QWindow *w = windowHandle();
+    if (w && w->screen()) {
+        return w->screen()->name();
+    }
+    return QString();
+}
+
+void DolphinMainWindow::closeQuickLook()
+{
+    if (m_quickLookOpen && QuickLookClient::isPreviewOwner(this)) {
+        m_quickLookOpen = false;
+        m_quickLookCloseTimer->stop();
+        QuickLookClient::closeQuickLook();
+    }
+}
+
+void DolphinMainWindow::closeQuickLookForExternalActivation()
+{
+    // A non-directory item was activated in this window: it opens in an
+    // external application, which takes the window focus, so the view that
+    // owns the preview cannot keep driving it (Space/Escape) - close the
+    // preview, mirroring the desktop's run() for the same activation.
+    closeQuickLook();
+}
+
 QMenu *DolphinMainWindow::createPopupMenu()
 {
     QMenu *menu = KXmlGuiWindow::createPopupMenu();
@@ -1998,7 +2347,10 @@ void DolphinMainWindow::setupActions()
         "</para>"));
     toggleSelectionModeAction->setIcon(QIcon::fromTheme(QStringLiteral("quickwizard")));
     toggleSelectionModeAction->setCheckable(true);
-    actionCollection()->setDefaultShortcut(toggleSelectionModeAction, Qt::Key_Space);
+    // Note: plain Space is used by the item views to trigger Quick Look, so the
+    // "Toggle Selection Mode" action uses Ctrl+Space (which is already the
+    // "toggle this item" gesture in selection mode; see selectionmode/topbar.cpp).
+    actionCollection()->setDefaultShortcut(toggleSelectionModeAction, Qt::CTRL | Qt::Key_Space);
     connect(toggleSelectionModeAction, &QAction::triggered, this, &DolphinMainWindow::toggleSelectionMode);
 
     // A special version of the toggleSelectionModeAction for the toolbar that also contains a menu
@@ -2832,17 +3184,49 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(view, &DolphinView::tabRequested, this, &DolphinMainWindow::openNewTab);
     connect(view, &DolphinView::activeTabRequested, this, &DolphinMainWindow::openNewTabAndActivate);
     connect(view, &DolphinView::windowRequested, this, &DolphinMainWindow::openNewWindow);
+    connect(view, &DolphinView::requestQuickLook, this, &DolphinMainWindow::showQuickLook);
+    connect(view, &DolphinView::quickLookEscapeRequested, this, &DolphinMainWindow::closeQuickLook);
+    connect(container, &DolphinViewContainer::externalItemActivated, this, &DolphinMainWindow::closeQuickLookForExternalActivation);
     connect(view, &DolphinView::requestContextMenu, this, &DolphinMainWindow::openContextMenu);
     connect(view, &DolphinView::directoryLoadingStarted, this, &DolphinMainWindow::enableStopAction);
     connect(view, &DolphinView::directoryLoadingCompleted, this, &DolphinMainWindow::disableStopAction);
     connect(view, &DolphinView::directoryLoadingCompleted, this, &DolphinMainWindow::slotDirectoryLoadingCompleted);
+    connect(view, &DolphinView::directoryLoadingCanceled, this, [this]() {
+        // The navigation was aborted before it settled: drop the Quick Look
+        // "close on empty selection" guard (see changeUrl()) so a later blank
+        // click can dismiss the preview again. Deferred one event-loop turn
+        // like slotDirectoryLoadingCompleted(), for the same reason.
+        QTimer::singleShot(0, this, [this]() {
+            m_quickLookNavigationInProgress = false;
+            m_takeOverQuickLookOnNextSelection = false;
+            if (m_quickLookCloseTimer) {
+                m_quickLookCloseTimer->stop();
+            }
+        });
+    });
     connect(view, &DolphinView::goBackRequested, this, &DolphinMainWindow::goBack);
     connect(view, &DolphinView::goForwardRequested, this, &DolphinMainWindow::goForward);
     connect(view, &DolphinView::urlActivated, this, &DolphinMainWindow::handleUrl);
     connect(view, &DolphinView::goUpRequested, this, &DolphinMainWindow::goUp);
     connect(view, &DolphinView::doubleClickViewBackground, this, &DolphinMainWindow::slotDoubleClickViewBackground);
 
-    connect(container->urlNavigatorInternalWithHistory(), &KUrlNavigator::urlChanged, this, &DolphinMainWindow::changeUrl);
+    // Arming the Quick Look guard before any url change clears the selection:
+    // entering a subdirectory goes DolphinViewContainer::slotItemActivated ->
+    // setUrl() -> KUrlNavigator::setLocationUrl(), which calls DolphinView::setUrl()
+    // (the clearSelection() and the selection-clear event that follows) BEFORE
+    // this urlChanged signal reaches changeUrl(), so changeUrl() is too late to
+    // arm the guard by then. An out-of-range url (e.g. an empty location) does
+    // not load a directory, so it would leave the guard armed forever and break
+    // the blank-click dismissal; the changeUrl() entry point re-checks
+    // KProtocolManager::supportsListing(), so it clears the guard when the url
+    // is not loadable.
+    connect(container->urlNavigatorInternalWithHistory(), &KUrlNavigator::urlChanged, this, [this, container](const QUrl &url) {
+        armQuickLookNavigationGuard(container);
+        if (!KProtocolManager::supportsListing(url)) {
+            m_quickLookNavigationInProgress = false;
+        }
+        changeUrl(url);
+    });
     connect(container->urlNavigatorInternalWithHistory(), &KUrlNavigator::historyChanged, this, &DolphinMainWindow::updateHistory);
 
     auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));

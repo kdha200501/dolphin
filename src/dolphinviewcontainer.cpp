@@ -778,6 +778,11 @@ void DolphinViewContainer::slotItemActivated(const KFileItem &item)
         return;
     }
 
+    // The item opens in an external application, which takes the window focus
+    // away from this view, so the view can no longer drive the Quick Look
+    // preview (Space/Escape) - let the main window close it.
+    Q_EMIT externalItemActivated();
+
     KIO::OpenUrlJob *job = new KIO::OpenUrlJob(item.targetUrl(), item.mimetype());
     // Auto*Warning*Handling, errors are put in a KMessageWidget by us in slotOpenUrlFinished.
     job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoWarningHandlingEnabled, this));
@@ -835,6 +840,16 @@ void DolphinViewContainer::slotfileMiddleClickActivated(const KFileItem &item)
 void DolphinViewContainer::slotItemsActivated(const KFileItemList &items)
 {
     Q_ASSERT(items.count() >= 2);
+
+    // A file in the activated set opens in an external application, which takes
+    // the window focus away from this view, so the Quick Look preview can no
+    // longer be driven by it - let the main window close it.
+    for (const KFileItem &item : items) {
+        if (!item.isDir()) {
+            Q_EMIT externalItemActivated();
+            break;
+        }
+    }
 
     KFileItemActions fileItemActions(this);
     fileItemActions.runPreferredApplications(items);
