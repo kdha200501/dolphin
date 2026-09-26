@@ -544,13 +544,17 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
                 m_selectionManager->setSelected(index, 1, KItemListSelectionManager::Toggle);
                 m_selectionManager->beginAnchoredSelection(index);
                 break;
-            } else {
-                // Select the current item if it is not selected yet.
-                const int current = m_selectionManager->currentItem();
-                if (!m_selectionManager->isSelected(current)) {
-                    m_selectionManager->setSelected(current);
-                    break;
+            } else if (!m_keyboardManager->isSearchAsYouTypeActive()) {
+                // Plain Space (no modifiers, not selection mode, not mid type-ahead)
+                // requests a Quick Look preview for the current/selected item(s).
+                KItemSet items;
+                if (m_selectionManager->selectedItems().isEmpty()) {
+                    items << index;
+                } else {
+                    items = m_selectionManager->selectedItems();
                 }
+                Q_EMIT quickLookRequested(items);
+                break;
             }
         }
         Q_FALLTHROUGH(); // fall through to the default case and add the Space to the current search string.
