@@ -298,6 +298,8 @@ target_sources(dolphinstatic PRIVATE
     dolphintabpage.cpp
     dolphintabwidget.cpp
     dolphinurlnavigator.cpp
+    quicklookclient.cpp
+    quicklookclient.h
     dolphinurlnavigatorscontroller.cpp
     trash/dolphintrash.cpp
     filterbar/filterbar.cpp

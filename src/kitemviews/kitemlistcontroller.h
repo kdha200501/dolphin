@@ -126,6 +126,12 @@ Q_SIGNALS:
      */
     void itemsActivated(const KItemSet &indexes);
 
+    /**
+     * Is emitted when a Quick Look preview is requested (plain Space key press
+     * on the current/selected item(s)).
+     */
+    void quickLookRequested(const KItemSet &indexes);
+
     void itemMiddleClicked(int index);
 
     /**

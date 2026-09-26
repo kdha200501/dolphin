@@ -367,14 +367,7 @@ public:
     void hideToolTip(const ToolTipManager::HideBehavior behavior = ToolTipManager::HideBehavior::Later);
 
     /**
-     * Check if the space key should be handled as a normal key, even if it's
-     * used as a keyboard shortcut.
-     *
-     * See BUG 465489
-     */
-    bool handleSpaceAsNormalKey() const;
-
-    /** Activates the view if the item list container gets focus. */
+     * Activates the view if the item list container gets focus. */
     bool eventFilter(QObject *watched, QEvent *event) override;
 
     /**
@@ -529,6 +522,18 @@ Q_SIGNALS:
      * context menu open with.
      */
     void itemsActivated(const KFileItemList &items);
+
+    /**
+     * Is emitted when a Quick Look preview is requested for the items \a items
+     * (plain Space key press).
+     */
+    void requestQuickLook(const KFileItemList &items);
+
+    /**
+     * Is emitted when Escape is pressed in the view, to close the Quick Look
+     * preview this view owns.
+     */
+    void quickLookEscapeRequested();
 
     /**
      * Is emitted if items have been added or deleted.
@@ -740,6 +745,8 @@ private Q_SLOTS:
 
     void slotItemActivated(int index);
     void slotItemsActivated(const KItemSet &indexes);
+    void slotQuickLookRequested(const KItemSet &indexes);
+    void slotQuickLookEscape();
     void slotItemMiddleClicked(int index);
     void slotItemContextMenuRequested(int index, const QPointF &pos);
     void slotViewContextMenuRequested(const QPointF &pos);

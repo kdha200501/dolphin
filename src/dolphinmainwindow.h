@@ -46,6 +46,7 @@ class KJob;
 class KNewFileMenu;
 class KRecentFilesAction;
 class KToolBarPopupAction;
+class QuickLookClosedWatcher;
 class QToolButton;
 class PlacesPanel;
 class TerminalPanel;
@@ -283,7 +284,18 @@ protected:
     /** Sets a sane initial window size **/
     QSize sizeHint() const override;
 
-protected Q_SLOTS:
+    // Why the Quick Look close grace timer was armed (see
+    // armQuickLookCloseTimer): a blank click (close when this window owns the
+    // preview, dismiss a foreign one it is orphaned on) versus a window focus
+    // loss (close only while this window is still the owner - a hand-off to
+    // another Dolphin window or the desktop re-owns it in the meantime).
+    enum class QuickLookCloseReason
+    {
+        BlankClick,
+        FocusLost
+    };
+
+    protected Q_SLOTS:
     /**
      * Calls the base method KXmlGuiWindow::saveNewToolbarConfig().
      * Is also used to set toolbar constraints and UrlNavigator position
@@ -582,6 +594,26 @@ private Q_SLOTS:
     void openContextMenu(const QPoint &pos, const KFileItem &item, const KFileItemList &selectedItems, const QUrl &url);
 
     /**
+     * Toggles the Quick Look preview of the given items via the Quick Look D-Bus
+     * service (triggered by plain Space in the item view): a preview this window
+     * already owns gets closed (macOS Quick Look behavior), a new one gets shown.
+     */
+    void showQuickLook(const KFileItemList &items);
+
+    /**
+     * Closes the Quick Look preview this window owns (triggered by Escape in the
+     * item view).
+     */
+    void closeQuickLook();
+
+    /**
+     * Closes the Quick Look preview this window owns because a non-directory
+     * item was activated: its default application is about to take the window
+     * focus, leaving no view to drive the preview.
+     */
+    void closeQuickLookForExternalActivation();
+
+    /**
      * Updates the menu that is by default at the right end of the toolbar.
      *
      * In true "simple by default" fashion, the menu only contains the most important
@@ -640,6 +672,46 @@ private Q_SLOTS:
      * Is called when the view has finished loading the directory.
      */
     void slotDirectoryLoadingCompleted();
+
+    /**
+     * Arms the Quick Look "close on empty selection" guard for the active
+     * view's container. Must be called before the view's selection is cleared
+     * by a directory navigation.
+     */
+    void armQuickLookNavigationGuard(DolphinViewContainer *container);
+
+    /**
+     * Arms the Quick Look "close on empty selection" guard and the
+     * take-over flag for an explicit directory-open request (see
+     * openDirectories()/openFiles()/openNewTab()/openInSplitView()). The
+     * directory a request navigates to is loaded during view construction,
+     * before the urlChanged -> changeUrl() connection exists, so arming
+     * happens here instead of in changeUrl() for that path.
+     */
+    void armQuickLookTakeover();
+
+    /**
+     * Hands the shared Quick Look preview over to this window for the
+     * selection given, making it the preview owner (explicit trigger, see
+     * QuickLookClient::requestPreview()). Called from the WindowActivate
+     * handler and from slotSelectionChanged() on a focus-following selection
+     * change.
+     */
+    void takeOverQuickLookOnFocus(const KFileItemList &selection);
+
+    /**
+     * Arms the Quick Look close grace timer for the given reason (see
+     * QuickLookCloseReason): the timeout's action depends on it.
+     */
+    void armQuickLookCloseTimer(QuickLookCloseReason reason);
+
+    /**
+     * QScreen::name() of this window's monitor: passed to the Quick Look
+     * service so the preview window anchors to the monitor the item was opened
+     * from. A stable per-monitor identifier valid in every process (unlike a
+     * screen index). Empty string while the window has no native window yet.
+     */
+    QString quickLookAnchorScreenName() const;
 
     /**
      * Is called when the user middle clicks a toolbar button.
@@ -813,6 +885,33 @@ private:
     KIO::CommandLauncherJob *m_job;
 
     KRecentFilesAction *m_recentFiles = nullptr;
+
+    bool m_quickLookOpen = false;
+    QPointer<QuickLookClosedWatcher> m_quickLookClosedWatcher;
+    // A click on the empty view closes the Quick Look preview through this
+    // timer rather than directly: an item click clears the selection and
+    // re-selects in two selectionChanged events, so a close on the transient
+    // empty state would kill every item click. The follow-up selection
+    // cancels the timer (see slotSelectionChanged()).
+    QTimer *m_quickLookCloseTimer = nullptr;
+    // Why the close grace timer is armed (see QuickLookCloseReason); set
+    // alongside arming it, read by the timeout handler.
+    QuickLookCloseReason m_quickLookCloseReason = QuickLookCloseReason::BlankClick;
+    // True while the view is navigating to a new directory so that the
+    // directory change's transient empty selection doesn't close an open
+    // Quick Look preview. Armed in changeUrl() (for paths where the view
+    // clears its selection afterwards) and via armQuickLookNavigationGuard()
+    // (for paths where it clears the selection first, e.g. entering a
+    // subdirectory); cleared once the new directory has loaded (see
+    // slotDirectoryLoadingCompleted()).
+    bool m_quickLookNavigationInProgress = false;
+    // Set on an explicit directory navigation (changeUrl()). If the first
+    // selection of the loaded directory arrives while a Quick Look preview is
+    // open that this window does not own (opened from another program, e.g.
+    // the desktop), the preview is handed over to this window - macOS Quick
+    // Look semantics for "open directory in new window". Consumed (and reset)
+    // by slotSelectionChanged(); cleared again when the navigation cancels.
+    bool m_takeOverQuickLookOnNextSelection = false;
 
     friend class DolphinMainWindowTest;
 };

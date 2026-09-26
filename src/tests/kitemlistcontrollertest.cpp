@@ -207,16 +207,18 @@ struct KeyPress {
  * key press.
  */
 struct ViewState {
-    ViewState(int current, const KItemSet &selection, bool activated = false)
+    ViewState(int current, const KItemSet &selection, bool activated = false, bool quickLook = false)
         : m_current(current)
         , m_selection(selection)
         , m_activated(activated)
+        , m_quickLook(quickLook)
     {
     }
 
     int m_current;
     KItemSet m_selection;
     bool m_activated;
+    bool m_quickLook;
 };
 
 // We have to define a typedef for the pair in order to make the test compile.
@@ -344,9 +346,9 @@ void KItemListControllerTest::testKeyboardNavigationMultiSelection_data()
                              << qMakePair(KeyPress(Qt::Key_Enter), ViewState(0, KItemSet(), true))
                              << qMakePair(KeyPress(Qt::Key_Space, Qt::ControlModifier), ViewState(0, KItemSet() << 0))
                              << qMakePair(KeyPress(Qt::Key_Space, Qt::ControlModifier), ViewState(0, KItemSet()))
-                             << qMakePair(KeyPress(Qt::Key_Space), ViewState(0, KItemSet() << 0))
+                             << qMakePair(KeyPress(Qt::Key_Space), ViewState(0, KItemSet() << 0), false, true) // Plain Space requests a Quick Look preview.
                              << qMakePair(KeyPress(Qt::Key_E), ViewState(13, KItemSet() << 13))
-                             << qMakePair(KeyPress(Qt::Key_Space), ViewState(14, KItemSet() << 14))
+                             << qMakePair(KeyPress(Qt::Key_Space), ViewState(14, KItemSet() << 14), false, true) // Plain Space requests a Quick Look preview.
                              << qMakePair(KeyPress(Qt::Key_3), ViewState(15, KItemSet() << 15))
                              << qMakePair(KeyPress(Qt::Key_Escape), ViewState(15, KItemSet()))
                              << qMakePair(KeyPress(Qt::Key_E), ViewState(13, KItemSet() << 13))
@@ -608,6 +610,7 @@ void KItemListControllerTest::testKeyboardNavigationMultiSelection()
 
     QSignalSpy spySingleItemActivated(m_controller, &KItemListController::itemActivated);
     QSignalSpy spyMultipleItemsActivated(m_controller, &KItemListController::itemsActivated);
+    QSignalSpy spyQuickLookRequested(m_controller, &KItemListController::quickLookRequested);
 
     int rowCount = 0;
     while (!testList.isEmpty()) {
@@ -618,6 +621,7 @@ void KItemListControllerTest::testKeyboardNavigationMultiSelection()
         const int current = test.second.m_current;
         const KItemSet selection = test.second.m_selection;
         const bool activated = test.second.m_activated;
+        const bool quickLook = test.second.m_quickLook;
 
         QTest::keyClick(m_container, key, modifier);
 
@@ -630,6 +634,16 @@ void KItemListControllerTest::testKeyboardNavigationMultiSelection()
                            .arg(QKeySequence(key).toString())
                            .arg(rowCount)));
         QCOMPARE(m_selectionManager->selectedItems(), selection);
+
+        if (quickLook) {
+            // Plain Space requests a Quick Look preview; no selection change.
+            QVERIFY(!spyQuickLookRequested.isEmpty());
+            QCOMPARE(qvariant_cast<KItemSet>(spyQuickLookRequested.takeFirst().at(0)), selection.isEmpty() ? KItemSet() << current : selection);
+            QVERIFY(spySingleItemActivated.isEmpty());
+            QVERIFY(spyMultipleItemsActivated.isEmpty());
+        } else {
+            QVERIFY(spyQuickLookRequested.isEmpty());
+        }
 
         if (activated) {
             if (!selection.isEmpty()) {
@@ -782,9 +796,9 @@ void KItemListControllerTest::testKeyboardNavigationSingleSelectionNoSelection_d
                                  << qMakePair(KeyPress(Qt::Key_Enter), ViewState(0, KItemSet(), true))
                                  << qMakePair(KeyPress(Qt::Key_Space, Qt::ControlModifier), ViewState(0, KItemSet() << 0))
                                  << qMakePair(KeyPress(Qt::Key_Space, Qt::ControlModifier), ViewState(0, KItemSet()))
-                                 << qMakePair(KeyPress(Qt::Key_Space), ViewState(0, KItemSet() << 0))
+                                 << qMakePair(KeyPress(Qt::Key_Space), ViewState(0, KItemSet() << 0), false, true) // Plain Space requests a Quick Look preview.
                                  << qMakePair(KeyPress(Qt::Key_E), ViewState(13, KItemSet() << 13))
-                                 << qMakePair(KeyPress(Qt::Key_Space), ViewState(14, KItemSet() << 14))
+                                 << qMakePair(KeyPress(Qt::Key_Space), ViewState(14, KItemSet() << 14), false, true) // Plain Space requests a Quick Look preview.
                                  << qMakePair(KeyPress(Qt::Key_3), ViewState(15, KItemSet() << 15))
                                  << qMakePair(KeyPress(Qt::Key_Escape), ViewState(15, KItemSet()))
                                  << qMakePair(KeyPress(Qt::Key_E), ViewState(16, KItemSet() << 16))

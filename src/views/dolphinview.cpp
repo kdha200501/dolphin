@@ -182,6 +182,8 @@ DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     controller->setSelectionBehavior(KItemListController::MultiSelection);
     connect(controller, &KItemListController::itemActivated, this, &DolphinView::slotItemActivated);
     connect(controller, &KItemListController::itemsActivated, this, &DolphinView::slotItemsActivated);
+    connect(controller, &KItemListController::quickLookRequested, this, &DolphinView::slotQuickLookRequested);
+    connect(controller, &KItemListController::escapePressed, this, &DolphinView::slotQuickLookEscape);
     connect(controller, &KItemListController::itemMiddleClicked, this, &DolphinView::slotItemMiddleClicked);
     connect(controller, &KItemListController::itemContextMenuRequested, this, &DolphinView::slotItemContextMenuRequested);
     connect(controller, &KItemListController::viewContextMenuRequested, this, &DolphinView::slotViewContextMenuRequested);
@@ -1145,6 +1147,30 @@ void DolphinView::slotItemActivated(int index)
     }
 }
 
+void DolphinView::slotQuickLookRequested(const KItemSet &indexes)
+{
+    abortTwoClicksRenaming();
+
+    KFileItemList items;
+    items.reserve(indexes.count());
+
+    for (int index : indexes) {
+        const KFileItem item = m_model->fileItem(index);
+        if (!item.isNull()) {
+            items.append(item);
+        }
+    }
+
+    if (!items.isEmpty()) {
+        Q_EMIT requestQuickLook(items);
+    }
+}
+
+void DolphinView::slotQuickLookEscape()
+{
+    Q_EMIT quickLookEscapeRequested();
+}
+
 void DolphinView::slotItemsActivated(const KItemSet &indexes)
 {
     Q_ASSERT(indexes.count() >= 2);
@@ -2008,11 +2034,6 @@ void DolphinView::hideToolTip(const ToolTipManager::HideBehavior behavior)
     } else if (m_mode == DolphinView::IconsView) {
         QToolTip::hideText();
     }
-}
-
-bool DolphinView::handleSpaceAsNormalKey() const
-{
-    return !m_container->hasFocus() || m_container->controller()->isSearchAsYouTypeActive();
 }
 
 void DolphinView::slotTwoClicksRenamingTimerTimeout()
