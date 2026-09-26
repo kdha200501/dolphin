@@ -294,6 +294,12 @@ Q_SIGNALS:
      */
     void activeTabRequested(const QUrl &url);
 
+    /**
+     * Is emitted when a non-directory item is activated and is about to be
+     * opened in an external application (which takes the window focus).
+     */
+    void externalItemActivated();
+
 private Q_SLOTS:
     /**
      * Updates the number of items (= number of files + number of
