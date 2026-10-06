@@ -293,7 +293,8 @@ void ViewProperties::setPreviewsShown(bool show)
 
 bool ViewProperties::previewsShown() const
 {
-    return m_node->previewsShown();
+    // jacks-customizations: hardcode "Show Previews" to enabled
+    return true;
 }
 
 void ViewProperties::setHiddenFilesShown(bool show)
